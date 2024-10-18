@@ -42,56 +42,49 @@ jobs:
           aws-region: us-east-1  
 
 
-      - name: Install AWS CLI
+      - name: Create EC2 Instance
+        id: create_ec2
         run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
+            INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --count 1 --instance-type t2.micro --key-name github-actions --security-group-ids sg-01ccef6495848c174 --subnet-id subnet-071379f6cd21e22a7  --query 'Instances[0].InstanceId' --output text)
+            echo "EC2 Instance created: $INSTANCE_ID"
+            echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
 
-
-      - name: Launch EC2 instance
-        id: launch-ec2-instance
+      - name: Wait for instance to be running
         run: |
-          INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --instance-type t2.micro --key-name github-actions --subnet-id subnet-071379f6cd21e22a7 --query 'Instances[0].InstanceId' --output text)
-
-          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
-
-          INSTANCE_PUBLIC_DNS=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicDnsName' --output text)
-          
-          echo "Instance Public DNS: $INSTANCE_PUBLIC_DNS"
-          
-          echo "::set-output name=EC2_PUBLIC_DNS::$INSTANCE_PUBLIC_DNS"
+         aws ec2 wait instance-running --instance-ids $INSTANCE_ID
 
       - name: Get EC2 Public DNS
         id: get_dns
         run: |
-          EC2_PUBLIC_DNS=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicDnsName' --output text)
-          echo "EC2 Public DNS: $EC2_PUBLIC_DNS"
-          echo "EC2_PUBLIC_DNS=$EC2_PUBLIC_DNS" >> $GITHUB_ENV
+            EC2_PUBLIC_DNS=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicDnsName' --output text)
+            echo "EC2 Public DNS: $EC2_PUBLIC_DNS"
+            echo "EC2_PUBLIC_DNS=$EC2_PUBLIC_DNS" >> $GITHUB_ENV
 
       - name: Install Docker and run container on EC2
         run: |
             echo "Connecting to EC2 instance at $EC2_PUBLIC_DNS..."
+
             echo "${{ secrets.EC2_SSH_KEY }}" > my-key.pem
-            chmod 600 my-key.pem 
-    
+            chmod 400 my-key.pem  
+
             ssh -o StrictHostKeyChecking=no -i my-key.pem ec2-user@$EC2_PUBLIC_DNS << 'EOF'
+                # Install Docker
+                if ! command -v docker &> /dev/null
+                then
+                    echo "Docker not installed. Installing..."
+                    sudo yum update -y
+                    sudo yum install docker -y
+                    sudo service docker start
+                    sudo usermod -a -G docker ec2-user
+                else
+                    echo "Docker already installed."
+                fi
 
-              if ! command -v docker &> /dev/null
-              then
-                  echo "Docker not installed. Installing..."
-                  sudo yum update -y
-                  sudo yum install docker -y
-                  sudo service docker start
-                  sudo usermod -a -G docker ec2-user
-              else
-                  echo "Docker already installed."
-              fi
-    
-              echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-    
+                echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
-              docker pull ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
-    
-    
-              docker run -d --name flask-app -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
+                docker pull ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
+
+
+                docker run -d --name flask-app -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
             EOF
+
