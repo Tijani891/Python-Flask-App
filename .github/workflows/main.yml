@@ -51,7 +51,7 @@ jobs:
       - name: Launch EC2 instance
         id: launch-ec2-instance
         run: |
-          INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --instance-type t2.micro --key-name github-actions --query 'Instances[0].InstanceId' --output text)
+          INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --instance-type t2.micro --key-name github-actions --subnet-id subnet-071379f6cd21e22a7 --query 'Instances[0].InstanceId' --output text)
 
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
 
