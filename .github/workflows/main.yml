@@ -51,25 +51,14 @@ jobs:
       - name: Launch EC2 instance
         id: launch-ec2-instance
         run: |
-          INSTANCE_ID=$(aws ec2 run-instances \
-            --image-id ami-0c55b159cbfafe1f0 \ 
-            --instance-type t2.micro \         
-            --key-name github-actions \             
-            --query 'Instances[0].InstanceId' \
-            --output text)
+          INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0c55b159cbfafe1f0 --instance-type t2.micro --key-name github-actions --query 'Instances[0].InstanceId' --output text)
 
-          # Wait until the instance is running
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
 
-          # Get the public DNS of the instance
-          INSTANCE_PUBLIC_DNS=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_ID \
-            --query 'Reservations[0].Instances[0].PublicDnsName' \
-            --output text)
+          INSTANCE_PUBLIC_DNS=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicDnsName' --output text)
           
           echo "Instance Public DNS: $INSTANCE_PUBLIC_DNS"
           
-          # Save the public DNS to be used in the next steps
           echo "::set-output name=EC2_PUBLIC_DNS::$INSTANCE_PUBLIC_DNS"
 
 
