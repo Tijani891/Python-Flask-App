@@ -79,11 +79,11 @@ jobs:
                     echo "Docker already installed."
                 fi
 
-                echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+                echo ${{ secrets.DOCKERHUB_PASSWORD }} | sudo docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
-                docker pull ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
+                sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
 
 
-                docker run -d --name flask-app -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
+                sudo docker run -d --name flask-app -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
             EOF
 
