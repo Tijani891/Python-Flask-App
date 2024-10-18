@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Deploy Docker Image to EC2
 
 on:
   push:
@@ -6,15 +6,17 @@ on:
       - main  
 
 jobs:
-  build:
+  build-deploy:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -22,11 +24,82 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:1.0
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
 
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  
+
+
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+
+      - name: Launch EC2 instance
+        run: |
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id ami-0c55b159cbfafe1f0 \ 
+            --instance-type t2.micro \         
+            --key-name github-actions \             
+            --query 'Instances[0].InstanceId' \
+            --output text)
+
+          # Wait until the instance is running
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+          # Get the public DNS of the instance
+          INSTANCE_PUBLIC_DNS=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCE_ID \
+            --query 'Reservations[0].Instances[0].PublicDnsName' \
+            --output text)
+          
+          echo "Instance Public DNS: $INSTANCE_PUBLIC_DNS"
+          
+          # Save the public DNS to be used in the next steps
+          echo "::set-output name=EC2_PUBLIC_DNS::$INSTANCE_PUBLIC_DNS"
+
+
+      - name: Deploy Docker container to EC2
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ steps.launch-ec2-instance.outputs.EC2_PUBLIC_DNS }}  
+          username: ec2-user  
+          key: ${{ secrets.EC2_SSH_KEY }}  
+          script: |
+            # Install Docker if not already installed
+            if ! command -v docker &> /dev/null
+            then
+                echo "Docker not installed. Installing..."
+                sudo yum update -y
+                sudo yum install docker -y
+                sudo service docker start
+                sudo usermod -aG docker $USER
+            else
+                echo "Docker already installed."
+            fi
+
+            # Log in to Docker Hub from the EC2 instance
+            echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+
+            # Pull the latest Docker image from Docker Hub
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
+
+            # # Stop any existing container with the same name
+            # docker stop flask-app || true
+            # docker rm flask-app || true
+
+            # Run the Docker container on EC2
+            docker run -d --name flask-app -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/python-flask-todo-app:latest
