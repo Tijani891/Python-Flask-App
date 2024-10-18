@@ -13,4 +13,4 @@ ENV FLASK_ENV=development
 
 RUN python create_db.py
 
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
