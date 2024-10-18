@@ -63,11 +63,9 @@ jobs:
       - name: Install Docker and run container on EC2
         run: |
             echo "Connecting to EC2 instance at $EC2_PUBLIC_DNS..."
+            chmod 400 github-actions.pem
 
-            echo "${{ secrets.EC2_SSH_KEY }}" > my-key.pem
-            chmod 400 my-key.pem  
-
-            ssh -i my-key.pem ec2-user@$EC2_PUBLIC_DNS << 'EOF'
+            ssh -i "github-actions.pem" ec2-user@$EC2_PUBLIC_DNS << 'EOF'
                 if ! command -v docker &> /dev/null
                 then
                     echo "Docker not installed. Installing..."
