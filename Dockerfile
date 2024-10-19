@@ -1,16 +1,16 @@
 FROM python:3.10-slim
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
-COPY . /app
+COPY requirements.txt .
 
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
 
 EXPOSE 5000
 
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=development
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
 
-RUN python create_db.py
 
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
