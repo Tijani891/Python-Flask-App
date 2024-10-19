@@ -73,11 +73,10 @@ You can also run the Todo application locally in Docker:
 
 #### 1. Automated Deployment via GitHub Actions
 
-![GitHub Actions Workflow](/Github%20Action%20Workflow.jpg)
+![GitHub Actions Workflow](/images/Github%20Action%20Workflow.jpg)
 
 #### 2. Application Running on EC2
-![Todo App on EC2](/Task%20master-Homepage.jpg)
-
+![Todo App on EC2](/images/Task%20master-Homepage.jpg)
 
 
 ## Contributing
