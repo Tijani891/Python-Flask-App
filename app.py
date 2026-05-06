@@ -1,63 +1,43 @@
-from flask import Flask, render_template, url_for, request, redirect
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from flask import Flask, redirect, url_for
+from config import config
+from extensions import db, login_manager
+from models.user import User
+import os
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
-db = SQLAlchemy(app)
 
-class Todo(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.String(200), nullable=False)
-    date_created = db.Column(db.DateTime, default=datetime.utcnow)
+def create_app(config_name=None):
+    if config_name is None:
+        config_name = os.environ.get('FLASK_ENV', 'default')
 
-    def  __repr__(self):
-        return '<Task %r>' % self.id
+    app = Flask(__name__)
+    app.config.from_object(config[config_name])
 
-@app.route("/", methods=['POST', 'GET'])
-def index():
-    if request.method == "POST":
-        task_content = request.form['content']
-        new_task = Todo(content=task_content)
+    db.init_app(app)
+    login_manager.init_app(app)
 
-        try:
-            db.session.add(new_task)
-            db.session.commit()
-            return redirect('/')
-        
-        except:
-            return "There was an error while adding your tasks"
-    else:
-        tasks = Todo.query.order_by(Todo.date_created).all()
-        return render_template('index.html', tasks=tasks)
-    
-@app.route('/delete/<int:id>')
-def delete(id):
-    task_to_delete = Todo.query.get_or_404(id)
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
 
-    try:
-        db.session.delete(task_to_delete)
-        db.session.commit()
-        return redirect('/')
+    from routes.auth import auth_bp
+    from routes.todos import todos_bp
+    from routes.categories import categories_bp
+    from routes.api import api_bp
 
-    except:
-        return "There was a problem deleting that task"
-    
-@app.route('/update/<int:id>', methods=['GET', 'POST'])
-def update(id):
-    task = Todo.query.get_or_404(id)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(todos_bp)
+    app.register_blueprint(categories_bp)
+    app.register_blueprint(api_bp)
 
-    if request.method == 'POST':
-        task.content = request.form['content']
+    @app.route('/')
+    def index():
+        return redirect(url_for('todos.index'))
 
-        try:
-            db.session.commit()
-            return redirect('/')
-        except:
-            return 'There was an issue updating your task'
-        
-    else:
-        return render_template('update.html', task=task)
+    return app
+
 
 if __name__ == '__main__':
+    app = create_app()
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
